@@ -35,8 +35,12 @@ const clientPlatform = process.platform;
 // The main process chooses a supported native backdrop. Share it with CSS
 // without exposing operating-system version checks to the web client.
 const windowMaterialArgument = process.argv.find((arg) => arg.startsWith("--t3-window-material="));
-const windowMaterial = windowMaterialArgument?.split("=")[1];
-if (windowMaterial === "mica" || windowMaterial === "vibrancy") {
+const requestedWindowMaterial = windowMaterialArgument?.split("=")[1];
+const windowMaterial =
+  requestedWindowMaterial === "mica" || requestedWindowMaterial === "vibrancy"
+    ? requestedWindowMaterial
+    : null;
+if (windowMaterial !== null) {
   window.addEventListener("DOMContentLoaded", () => {
     document.documentElement.dataset.windowMaterial = windowMaterial;
   });
@@ -67,6 +71,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     return result as ReturnType<DesktopBridge["getAppBranding"]>;
   },
   getClientPlatform: () => clientPlatform,
+  getWindowMaterial: () => windowMaterial,
   getSystemLocale: () => {
     const result = ipcRenderer.sendSync(IpcChannels.GET_SYSTEM_LOCALE_CHANNEL);
     return typeof result === "string" ? result : null;

@@ -33,7 +33,7 @@ import {
   supportsSharedSettingsSync,
 } from "@t3tools/client-runtime/state/shared-settings";
 import { ensureLocalApi } from "~/localApi";
-import { isElectron } from "~/env";
+import { supportsTranslucentSidebar } from "~/env";
 import {
   getThemeDefinition,
   getThemePreviewSidebarArtwork,
@@ -353,7 +353,7 @@ export function useTranslucentSidebarEnabled(): boolean {
   const settingsHydrated = useClientSettingsHydrated();
   const enabled = useClientSettingsValue().translucentSidebar;
   const desktopLayout = useMediaQuery("md");
-  return isElectron && settingsHydrated && enabled && desktopLayout;
+  return supportsTranslucentSidebar && settingsHydrated && enabled && desktopLayout;
 }
 
 export function useEnvironmentIdentificationMode(): EnvironmentIdentificationMode {

@@ -60,7 +60,7 @@ import {
   resolveEnvironmentIdentificationPillLabel,
   useEnvironmentStageLabel,
 } from "../SidebarStageBackdrop";
-import { isElectron } from "../../env";
+import { isElectron, supportsTranslucentSidebar } from "../../env";
 import { buildHostedChannelSelectionUrl, type HostedAppChannel } from "../../hostedPairing";
 import { useCustomThemes } from "../../hooks/useCustomThemes";
 import {
@@ -1109,7 +1109,11 @@ export function AppearanceSettingsPanel() {
         {isElectron ? (
           <SettingsRow
             {...searchableSetting("translucent-sidebar")}
-            description="Make the sidebar and top bar translucent."
+            description={
+              supportsTranslucentSidebar
+                ? "Make the sidebar and top bar translucent."
+                : "Translucency is not supported on this system."
+            }
             resetAction={
               settings.translucentSidebar !== DEFAULT_UNIFIED_SETTINGS.translucentSidebar ? (
                 <SettingResetButton
@@ -1124,7 +1128,8 @@ export function AppearanceSettingsPanel() {
             }
             control={
               <Switch
-                checked={settings.translucentSidebar}
+                checked={supportsTranslucentSidebar && settings.translucentSidebar}
+                disabled={!supportsTranslucentSidebar}
                 onCheckedChange={(checked) =>
                   updateSettings({ translucentSidebar: Boolean(checked) })
                 }
