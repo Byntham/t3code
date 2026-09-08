@@ -17,6 +17,11 @@ import * as Electron from "electron";
 import * as NodeEvents from "node:events";
 import { vi } from "vite-plus/test";
 
+vi.mock("node:os", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("node:os")>()),
+  release: () => "10.0.22621",
+}));
+
 vi.mock("electron", async (importOriginal) => ({
   ...(await importOriginal<typeof import("electron")>()),
   session: {
@@ -113,6 +118,7 @@ function makeFakeBrowserWindow() {
     }),
     restore: vi.fn(),
     setBackgroundColor: vi.fn(),
+    setBackgroundMaterial: vi.fn(),
     setAutoHideCursor: vi.fn(),
     setFullScreen: vi.fn(),
     setOpacity: vi.fn(),
@@ -137,6 +143,8 @@ function makeFakeBrowserWindow() {
     send: webContents.send,
     setZoomLevel: webContents.setZoomLevel,
     setBackgroundThrottling: webContents.setBackgroundThrottling,
+    setBackgroundColor: window.setBackgroundColor,
+    setBackgroundMaterial: window.setBackgroundMaterial,
     setAutoHideCursor: window.setAutoHideCursor,
     setFullScreen: window.setFullScreen,
     setOpacity: window.setOpacity,
@@ -222,6 +230,8 @@ function makeTestLayer(input: {
   readonly onPopupTemplate?: (input: ElectronMenu.ElectronMenuTemplateInput) => Effect.Effect<void>;
   readonly previewZoomReapplies?: number[];
   readonly onReveal?: (window: Electron.BrowserWindow) => void;
+  readonly shouldUseDarkColors?: Effect.Effect<boolean>;
+  readonly platform?: NodeJS.Platform;
 }) {
   let desktopSettings = input.desktopSettings ?? DesktopAppSettings.DEFAULT_DESKTOP_SETTINGS;
   const desktopAppSettingsLayer = Layer.succeed(DesktopAppSettings.DesktopAppSettings, {
@@ -278,6 +288,10 @@ function makeTestLayer(input: {
   } satisfies ElectronWindow.ElectronWindow["Service"]);
 
   return DesktopWindow.layer.pipe(
+    Layer.updateService(DesktopEnvironment.DesktopEnvironment, (environment) => ({
+      ...environment,
+      platform: input.platform ?? environment.platform,
+    })),
     Layer.provide(
       Layer.mergeAll(
         desktopAssetsLayer,
@@ -304,7 +318,13 @@ function makeTestLayer(input: {
               input.copiedTexts?.push(text);
             }),
         } satisfies ElectronShell.ElectronShell["Service"]),
-        electronThemeLayer,
+        input.shouldUseDarkColors
+          ? Layer.succeed(ElectronTheme.ElectronTheme, {
+              shouldUseDarkColors: input.shouldUseDarkColors,
+              setSource: () => Effect.void,
+              onUpdated: () => Effect.void,
+            })
+          : electronThemeLayer,
         electronWindowLayer,
         Layer.mock(PreviewManager.PreviewManager)({
           getBrowserSession: () => Effect.succeed({} as Electron.Session),
@@ -425,6 +445,78 @@ const captureOne = DesktopSnapShotId.make("11111111-1111-4111-8111-111111111111"
 const captureTwo = DesktopSnapShotId.make("22222222-2222-4222-8222-222222222222");
 
 describe("DesktopWindow", () => {
+  it("selects native wallpaper material only on supported desktop systems", () => {
+    assert.equal(DesktopWindow.getWindowMaterial("darwin", "23.0.0"), "vibrancy");
+    assert.equal(DesktopWindow.getWindowMaterial("win32", "10.0.22621"), "mica");
+    assert.isNull(DesktopWindow.getWindowMaterial("win32", "10.0.22000"));
+    assert.isNull(DesktopWindow.getWindowMaterial("linux", "6.8.0"));
+  });
+
+  it.effect("preserves the main window material when the theme changes", () =>
+    Effect.gen(function* () {
+      const fakeWindow = makeFakeBrowserWindow();
+      const darkTheme = yield* Ref.make(false);
+      const mainWindow = yield* Ref.make<Option.Option<Electron.BrowserWindow>>(Option.none());
+      const createdWindowOptions: Electron.BrowserWindowConstructorOptions[] = [];
+      const layer = makeTestLayer({
+        window: fakeWindow.window,
+        createCount: yield* Ref.make(0),
+        mainWindow,
+        createdWindowOptions,
+        shouldUseDarkColors: Ref.get(darkTheme),
+      });
+
+      yield* Effect.gen(function* () {
+        const desktopWindow = yield* DesktopWindow.DesktopWindow;
+        yield* desktopWindow.createMain;
+        assert.equal(createdWindowOptions[0]?.vibrancy, "sidebar");
+        assert.equal(createdWindowOptions[0]?.visualEffectState, "active");
+        assert.equal(createdWindowOptions[0]?.backgroundColor, "#00000000");
+        assert.deepEqual(createdWindowOptions[0]?.webPreferences?.additionalArguments, [
+          "--t3-window-material=vibrancy",
+        ]);
+
+        yield* Ref.set(darkTheme, true);
+        yield* desktopWindow.syncAppearance;
+        yield* Ref.set(darkTheme, false);
+        yield* desktopWindow.syncAppearance;
+        assert.deepEqual(fakeWindow.setBackgroundColor.mock.calls, [["#00000000"], ["#00000000"]]);
+
+        // Auxiliary windows retain an opaque background, even on a material-capable OS.
+        yield* Ref.set(mainWindow, Option.none());
+        yield* desktopWindow.syncAppearance;
+        assert.equal(fakeWindow.setBackgroundColor.mock.lastCall?.[0], "#ffffff");
+      }).pipe(Effect.provide(layer));
+    }),
+  );
+  it.effect("preserves Mica after deactivation and skips windows closed during blur", () =>
+    Effect.gen(function* () {
+      const fakeWindow = makeFakeBrowserWindow();
+      const layer = makeTestLayer({
+        window: fakeWindow.window,
+        createCount: yield* Ref.make(0),
+        mainWindow: yield* Ref.make<Option.Option<Electron.BrowserWindow>>(Option.none()),
+        platform: "win32",
+      });
+
+      yield* Effect.gen(function* () {
+        const desktopWindow = yield* DesktopWindow.DesktopWindow;
+        yield* desktopWindow.createMain;
+        const blur = fakeWindow.windowListeners.get("blur");
+        assert.isDefined(blur);
+        blur();
+        assert.equal(fakeWindow.setBackgroundMaterial.mock.calls.length, 0);
+        yield* Effect.promise(() => new Promise<void>((resolve) => setImmediate(resolve)));
+        assert.deepEqual(fakeWindow.setBackgroundMaterial.mock.calls, [["mica"]]);
+        assert.equal(vi.mocked(fakeWindow.window.focus).mock.calls.length, 0);
+
+        blur();
+        fakeWindow.isDestroyed.mockReturnValue(true);
+        yield* Effect.promise(() => new Promise<void>((resolve) => setImmediate(resolve)));
+        assert.equal(fakeWindow.setBackgroundMaterial.mock.calls.length, 1);
+      }).pipe(Effect.provide(layer));
+    }),
+  );
   it.effect("shows native context menus for browser guests and sign-in popups", () =>
     Effect.gen(function* () {
       const host = makeFakeBrowserWindow();

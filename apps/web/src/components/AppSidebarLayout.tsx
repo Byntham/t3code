@@ -222,10 +222,12 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
     <PanelAnimationSuppressionProvider value={panelAnimationsSuppressed}>
       <SidebarProvider
         className="h-dvh! min-h-0!"
+        data-app-frame=""
         data-panel-animations={routePanelAnimationsActive ? "true" : "false"}
         defaultOpen
         style={sidebarProviderStyle}
       >
+        {isElectron ? <div aria-hidden className="desktop-window-titlebar drag-region" /> : null}
         <ProjectProjectionRetention />
         <Sidebar
           side="left"

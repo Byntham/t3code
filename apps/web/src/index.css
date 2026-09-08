@@ -1547,6 +1547,70 @@ body {
   --desktop-window-right-resize-inset: 6px;
 }
 
+/* The sidebar and native title bar share one background. Keep the workspace
+   opaque and inset below the window controls, including Settings and previews.
+   Override the inline backgrounds written by boot and browser theme sync. */
+@media (min-width: 768px) {
+  html.electron:has([data-app-frame]) {
+    background-color: var(--sidebar) !important;
+  }
+
+  html.electron:has([data-app-frame]) body {
+    background-color: transparent !important;
+  }
+
+  html.electron[data-window-material]:has([data-app-frame]) {
+    background-color: transparent !important;
+  }
+
+  html.electron[data-window-material]:has([data-app-frame]) body {
+    background-color: color-mix(in srgb, var(--sidebar) 25%, transparent) !important;
+  }
+
+  .desktop-window-titlebar {
+    position: fixed;
+    inset: 0 0 auto;
+    height: var(--workspace-topbar-height);
+  }
+
+  /* Keep scrollbars clear of the Windows resize edge, but paint that reserved
+     strip as part of the canvas rather than exposing the native backdrop. */
+  html.electron:has([data-app-frame]) #root {
+    background: linear-gradient(var(--background), var(--background)) right bottom /
+      var(--desktop-window-right-resize-inset) calc(100% - var(--workspace-topbar-height)) no-repeat;
+  }
+
+  html.electron [data-app-frame] [data-app-sidebar],
+  html.electron [data-app-frame] [data-app-sidebar] > [data-slot="sidebar-inner"] {
+    background: transparent;
+    border-right-width: 0;
+  }
+
+  html.electron [data-app-frame] > [data-slot="sidebar-inset"] {
+    height: calc(100dvh - var(--workspace-topbar-height));
+    margin-top: var(--workspace-topbar-height);
+    border-radius: 12px 0 0 0;
+  }
+
+  html.electron [data-app-frame] [data-workspace-titlebar-controls] {
+    position: fixed;
+  }
+
+  /* These rows now sit below the native controls and sidebar toggle. */
+  html.electron [data-app-frame] [data-workspace-page-header] {
+    padding-inline: 1.25rem;
+  }
+
+  html.electron [data-app-frame] [data-chat-header-actions] {
+    padding-right: 0;
+  }
+
+  html.electron [data-app-frame] [data-preview-panel-mode="inline"] > [data-right-panel-tabbar] {
+    padding-left: 0.5rem;
+    padding-right: 0.75rem;
+  }
+}
+
 /* App-chrome grain. Baked into each surface's own background (behind
    content) rather than a fixed overlay on top: a full-viewport overlay
    forces the compositor to re-blend every frame any animation produces,

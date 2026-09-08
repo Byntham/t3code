@@ -32,6 +32,16 @@ exposeClerkBridge({ passkeys: true });
 // oxlint-disable-next-line t3code/no-global-process-runtime -- Electron exposes the client platform in its sandboxed preload process.
 const clientPlatform = process.platform;
 
+// The main process chooses a supported native backdrop. Share it with CSS
+// without exposing operating-system version checks to the web client.
+const windowMaterialArgument = process.argv.find((arg) => arg.startsWith("--t3-window-material="));
+const windowMaterial = windowMaterialArgument?.split("=")[1];
+if (windowMaterial === "mica" || windowMaterial === "vibrancy") {
+  window.addEventListener("DOMContentLoaded", () => {
+    document.documentElement.dataset.windowMaterial = windowMaterial;
+  });
+}
+
 function unwrapEnsureSshEnvironmentResult(result: unknown) {
   if (
     typeof result === "object" &&
