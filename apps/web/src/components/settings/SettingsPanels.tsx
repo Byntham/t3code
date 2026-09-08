@@ -1109,7 +1109,7 @@ export function AppearanceSettingsPanel() {
         {isElectron ? (
           <SettingsRow
             {...searchableSetting("translucent-sidebar")}
-            description="Use a translucent sidebar and top bar tinted by your desktop background on supported systems."
+            description="Make the sidebar and top bar translucent."
             resetAction={
               settings.translucentSidebar !== DEFAULT_UNIFIED_SETTINGS.translucentSidebar ? (
                 <SettingResetButton
