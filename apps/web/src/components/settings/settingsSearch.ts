@@ -93,6 +93,15 @@ export const SETTINGS_SEARCH_ITEMS = [
     targetId: "appearance",
   },
   {
+    id: "translucent-sidebar",
+    title: "Translucent sidebar",
+    to: "/settings/appearance",
+    searchTerms: [
+      "transparent transparency wallpaper desktop background tint top bar mica vibrancy",
+    ],
+    desktopOnly: true,
+  },
+  {
     // Prefixed because the slider control already owns the `appearance-contrast` id.
     id: "setting-appearance-contrast",
     title: "Contrast",
@@ -115,7 +124,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "environment-identification",
     title: "Environment identification",
     to: "/settings/appearance",
-    searchTerms: ["dev nightly artwork pill label hide none"],
+    searchTerms: ["dev nightly artwork pill badge label hide none"],
     // The setting is stage-dependent, so its parent section is the stable destination.
     targetId: "appearance-interface",
   },

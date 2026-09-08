@@ -33,6 +33,7 @@ import {
   supportsSharedSettingsSync,
 } from "@t3tools/client-runtime/state/shared-settings";
 import { ensureLocalApi } from "~/localApi";
+import { supportsTranslucentSidebar } from "~/env";
 import {
   getThemeDefinition,
   getThemePreviewSidebarArtwork,
@@ -47,6 +48,7 @@ import { primaryServerSettingsAtom, serverEnvironment } from "~/state/server";
 import { useEnvironments, usePrimaryEnvironment } from "~/state/environments";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { useTheme } from "./useTheme";
+import { useMediaQuery } from "./useMediaQuery";
 
 const CLIENT_SETTINGS_PERSISTENCE_ERROR_SCOPE = "[CLIENT_SETTINGS]";
 
@@ -340,11 +342,18 @@ export function resolveEnvironmentIdentificationMode(input: {
 }): EnvironmentIdentificationMode {
   // Avoid briefly rendering the default artwork before a persisted pill/none choice loads.
   if (!input.settingsHydrated) return "none";
-  // Artwork palettes are maintained for built-ins only. Keep an explicit
-  // "none", but use the theme-aware pill for user-controlled palettes.
-  return input.paletteThemeActive && !input.paletteThemeAllowsArtwork && input.mode === "artwork"
+  // Keep artwork off palettes without matching artwork.
+  // Resolve to a pill without overwriting the user's saved artwork choice.
+  return input.mode === "artwork" && input.paletteThemeActive && !input.paletteThemeAllowsArtwork
     ? "pill"
     : input.mode;
+}
+
+export function useTranslucentSidebarEnabled(): boolean {
+  const settingsHydrated = useClientSettingsHydrated();
+  const enabled = useClientSettingsValue().translucentSidebar;
+  const desktopLayout = useMediaQuery("md");
+  return supportsTranslucentSidebar && settingsHydrated && enabled && desktopLayout;
 }
 
 export function useEnvironmentIdentificationMode(): EnvironmentIdentificationMode {

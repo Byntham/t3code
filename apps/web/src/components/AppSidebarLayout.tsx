@@ -14,7 +14,11 @@ import { getLocalStorageItem, removeLocalStorageItem } from "../hooks/useLocalSt
 import { resolveShortcutCommand, shortcutLabelForCommand } from "../keybindings";
 import { cn, isMacPlatform } from "../lib/utils";
 import { primaryServerKeybindingsAtom } from "../state/server";
-import { useEnvironmentIdentificationMode, useLegacySidebarEnabled } from "../hooks/useSettings";
+import {
+  useEnvironmentIdentificationMode,
+  useLegacySidebarEnabled,
+  useTranslucentSidebarEnabled,
+} from "../hooks/useSettings";
 import {
   PanelAnimationSuppressionProvider,
   usePanelAnimationSettings,
@@ -144,6 +148,7 @@ function ProjectProjectionRetention() {
 export function AppSidebarLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const legacySidebarEnabled = useLegacySidebarEnabled();
+  const translucentSidebar = useTranslucentSidebarEnabled();
   const { active: panelAnimationsActive, durationMs: panelAnimationDurationMs } =
     usePanelAnimationSettings();
   // Settings routes show the settings nav in place of whichever thread
@@ -222,10 +227,13 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
     <PanelAnimationSuppressionProvider value={panelAnimationsSuppressed}>
       <SidebarProvider
         className="h-dvh! min-h-0!"
+        data-app-frame=""
+        data-translucent-sidebar={translucentSidebar ? "" : undefined}
         data-panel-animations={routePanelAnimationsActive ? "true" : "false"}
         defaultOpen
         style={sidebarProviderStyle}
       >
+        {isElectron ? <div aria-hidden className="desktop-window-titlebar drag-region" /> : null}
         <ProjectProjectionRetention />
         <Sidebar
           side="left"

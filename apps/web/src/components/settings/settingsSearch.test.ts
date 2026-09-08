@@ -119,6 +119,7 @@ describe("searchSettings", () => {
     expect(SETTINGS_SEARCH_ITEMS.some((item) => item.id === "quit-confirmation")).toBe(true);
     expect(searchSettings("hold to quit")).toEqual([]);
     expect(searchSettings("wsl")).toEqual([]);
+    expect(searchSettings("translucent sidebar")).toEqual([]);
   });
 
   it("hides macOS-only settings on other platforms", () => {

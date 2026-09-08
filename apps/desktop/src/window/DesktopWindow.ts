@@ -7,6 +7,7 @@ import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
 
 import * as Electron from "electron";
+import * as NodeOS from "node:os";
 
 import { type DesktopSnapShotEvent, DEFAULT_CLIENT_SETTINGS } from "@t3tools/contracts";
 
@@ -141,6 +142,17 @@ function getInitialWindowBackgroundColor(shouldUseDarkColors: boolean): string {
   return shouldUseDarkColors ? "#0a0a0a" : "#ffffff";
 }
 
+export function getWindowMaterial(platform: NodeJS.Platform, osRelease: string) {
+  if (platform === "darwin") return "vibrancy";
+  // Electron's Mica backdrop requires Windows 11 22H2. Older Windows and
+  // Linux keep the opaque theme background behind the same renderer frame.
+  const [major, , build] = osRelease.split(".").map(Number);
+  if (platform === "win32" && major === 10 && build !== undefined && build >= 22621) {
+    return "mica";
+  }
+  return null;
+}
+
 type DisplayBounds = Pick<Electron.Rectangle, "x" | "y" | "width" | "height">;
 
 function windowFitsWithinDisplay(
@@ -259,13 +271,16 @@ function syncWindowAppearance(
   window: Electron.BrowserWindow,
   shouldUseDarkColors: boolean,
   platform: NodeJS.Platform,
+  hasWindowMaterial: boolean,
 ): Effect.Effect<void> {
   return Effect.sync(() => {
     if (window.isDestroyed()) {
       return;
     }
 
-    window.setBackgroundColor(getInitialWindowBackgroundColor(shouldUseDarkColors));
+    window.setBackgroundColor(
+      hasWindowMaterial ? "#00000000" : getInitialWindowBackgroundColor(shouldUseDarkColors),
+    );
     const { titleBarOverlay } = getWindowTitleBarOptions(shouldUseDarkColors, platform);
     if (typeof titleBarOverlay === "object") {
       window.setTitleBarOverlay(titleBarOverlay);
@@ -302,6 +317,10 @@ export const make = Effect.gen(function* () {
   const desktopSettings = yield* DesktopAppSettings.DesktopAppSettings;
   const clientSettings = yield* DesktopClientSettings.DesktopClientSettings;
   const electronApp = yield* ElectronApp.ElectronApp;
+  const windowMaterial = getWindowMaterial(
+    environment.platform,
+    yield* Effect.sync(NodeOS.release),
+  );
   // Window-side latch for the primary backend's readiness. Set by
   // handleBackendReady (driven by the pool's onReady callback), cleared
   // by handleBackendNotReady (driven by onShutdown). Only consumed by
@@ -381,12 +400,19 @@ export const make = Effect.gen(function* () {
       show: false,
       autoHideMenuBar: true,
       ...(environment.platform === "darwin" ? { disableAutoHideCursor: true } : {}),
-      backgroundColor: getInitialWindowBackgroundColor(shouldUseDarkColors),
+      backgroundColor: windowMaterial
+        ? "#00000000"
+        : getInitialWindowBackgroundColor(shouldUseDarkColors),
+      ...(windowMaterial === "mica" ? { backgroundMaterial: "mica" as const } : {}),
+      ...(windowMaterial === "vibrancy"
+        ? { vibrancy: "sidebar" as const, visualEffectState: "active" as const }
+        : {}),
       ...iconOption,
       title: environment.displayName,
       ...getWindowTitleBarOptions(shouldUseDarkColors, environment.platform),
       webPreferences: {
         preload: environment.preloadPath,
+        additionalArguments: windowMaterial ? [`--t3-window-material=${windowMaterial}`] : [],
         // The window boots hidden (show: false until ready-to-show), and
         // Chromium throttles hidden renderers: timers coalesce and rAF stops,
         // which stalls first paint. Boot unthrottled; the first-reveal trigger
@@ -399,6 +425,16 @@ export const make = Effect.gen(function* () {
         webviewTag: true,
       },
     });
+
+    if (windowMaterial === "mica") {
+      window.on("blur", () => {
+        // Reapply after Windows finishes deactivating the window. Electron's
+        // setBackgroundMaterial activates non-client painting without taking focus.
+        setImmediate(() => {
+          if (!window.isDestroyed()) window.setBackgroundMaterial("mica");
+        });
+      });
+    }
 
     if (environment.platform === "darwin") {
       window.setAutoHideCursor(false);
@@ -991,8 +1027,14 @@ export const make = Effect.gen(function* () {
     }),
     syncAppearance: Effect.gen(function* () {
       const shouldUseDarkColors = yield* electronTheme.shouldUseDarkColors;
+      const mainWindow = yield* electronWindow.main;
       yield* electronWindow.syncAllAppearance((window) =>
-        syncWindowAppearance(window, shouldUseDarkColors, environment.platform),
+        syncWindowAppearance(
+          window,
+          shouldUseDarkColors,
+          environment.platform,
+          windowMaterial !== null && Option.isSome(mainWindow) && mainWindow.value === window,
+        ),
       );
     }).pipe(Effect.withSpan("desktop.window.syncAppearance")),
   });

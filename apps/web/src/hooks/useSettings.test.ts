@@ -328,6 +328,10 @@ describe("persistClientSettingsUpdate", () => {
 });
 
 describe("resolveEnvironmentIdentificationMode", () => {
+  it.each(["artwork", "pill", "none"] as const)("preserves the %s preference", (mode) => {
+    expect(resolveEnvironmentIdentificationMode({ mode, settingsHydrated: true })).toBe(mode);
+  });
+
   it("keeps identification hidden until client settings hydrate", () => {
     expect(resolveEnvironmentIdentificationMode({ mode: "artwork", settingsHydrated: false })).toBe(
       "none",
