@@ -1547,15 +1547,15 @@ body {
   --desktop-window-right-resize-inset: 6px;
 }
 
-/* The sidebar and native title bar share one background. Keep the workspace
-   opaque and inset below the window controls, including Settings and previews.
+/* Web and desktop share an opaque frame around the inset workspace. Only
+   supported native windows can reveal a backdrop through that frame.
    Override the inline backgrounds written by boot and browser theme sync. */
 @media (min-width: 768px) {
-  html.electron:has([data-app-frame]) {
+  html:has([data-app-frame]) {
     background-color: var(--sidebar) !important;
   }
 
-  html.electron:has([data-app-frame]) body {
+  html:has([data-app-frame]) body {
     background-color: transparent !important;
   }
 
@@ -1580,27 +1580,27 @@ body {
       var(--desktop-window-right-resize-inset) calc(100% - var(--workspace-topbar-height)) no-repeat;
   }
 
-  html.electron [data-app-frame] [data-app-sidebar],
-  html.electron [data-app-frame] [data-app-sidebar] > [data-slot="sidebar-inner"] {
+  html [data-app-frame] [data-app-sidebar],
+  html [data-app-frame] [data-app-sidebar] > [data-slot="sidebar-inner"] {
     background: transparent;
     border-right-width: 0;
   }
 
-  html.electron [data-app-frame] [data-app-sidebar] [data-slot="sidebar-rail"] {
+  html [data-app-frame] [data-app-sidebar] [data-slot="sidebar-rail"] {
     top: var(--workspace-topbar-height);
   }
 
   /* Highlight the canvas outline instead of drawing a separate resize line. */
-  html.electron [data-app-frame] [data-app-sidebar] [data-slot="sidebar-rail"]::after {
+  html [data-app-frame] [data-app-sidebar] [data-slot="sidebar-rail"]::after {
     display: none;
   }
 
-  html.electron [data-app-frame] {
-    --desktop-workspace-corner-radius: 12px;
+  html [data-app-frame] {
+    --workspace-corner-radius: 12px;
   }
 
   /* Anchor to the viewport so the outline includes the native resize strip. */
-  html.electron
+  html
     [data-app-frame]:has([data-app-sidebar] [data-slot="sidebar-rail"]:is(:hover, :active))::after {
     content: "";
     position: fixed;
@@ -1609,17 +1609,17 @@ body {
     pointer-events: none;
     border-top: 2px solid var(--sidebar-border);
     border-left: 2px solid var(--sidebar-border);
-    border-radius: var(--desktop-workspace-corner-radius) 0 0 0;
+    border-radius: var(--workspace-corner-radius) 0 0 0;
   }
 
-  /* Native chrome needs a real alpha fade, not the opaque theme-color overlay. */
-  html.electron [data-app-frame] .sidebar-stage-backdrop::after {
+  /* Fade artwork into the shared frame, including native backdrops. */
+  html [data-app-frame] .sidebar-stage-backdrop::after {
     display: none;
   }
 
   /* Match the straight edge fades to a quarter-circle fade at the bottom-right.
      Non-overlapping mask tiles keep the corner continuous with both edges. */
-  html.electron [data-app-frame] .sidebar-stage-backdrop {
+  html [data-app-frame] .sidebar-stage-backdrop {
     --stage-edge-fade:
       black 0px, rgb(0 0 0 / 97%) 8px, rgb(0 0 0 / 85%) 16px, rgb(0 0 0 / 50%) 24px,
       rgb(0 0 0 / 15%) 32px, rgb(0 0 0 / 2.5%) 40px, transparent 48px;
@@ -1632,26 +1632,26 @@ body {
       radial-gradient(circle at top left, var(--stage-edge-fade)) bottom right / 48px 48px no-repeat;
   }
 
-  html.electron [data-app-frame] > [data-slot="sidebar-inset"] {
+  html [data-app-frame] > [data-slot="sidebar-inset"] {
     height: calc(100dvh - var(--workspace-topbar-height));
     margin-top: var(--workspace-topbar-height);
-    border-radius: var(--desktop-workspace-corner-radius) 0 0 0;
+    border-radius: var(--workspace-corner-radius) 0 0 0;
   }
 
-  html.electron [data-app-frame] [data-workspace-titlebar-controls] {
+  html [data-app-frame] [data-workspace-titlebar-controls] {
     position: fixed;
   }
 
-  /* These rows now sit below the native controls and sidebar toggle. */
-  html.electron [data-app-frame] [data-workspace-page-header] {
+  /* These rows sit below the frame controls and sidebar toggle. */
+  html [data-app-frame] [data-workspace-page-header] {
     padding-inline: 1.25rem;
   }
 
-  html.electron [data-app-frame] [data-chat-header-actions] {
+  html [data-app-frame] [data-chat-header-actions] {
     padding-right: 0;
   }
 
-  html.electron [data-app-frame] [data-preview-panel-mode="inline"] > [data-right-panel-tabbar] {
+  html [data-app-frame] [data-preview-panel-mode="inline"] [data-right-panel-tabbar] {
     padding-left: 0.5rem;
     padding-right: 0.75rem;
   }
