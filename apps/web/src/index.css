@@ -1559,11 +1559,11 @@ body {
     background-color: transparent !important;
   }
 
-  html.electron[data-window-material]:has([data-app-frame]) {
+  html.electron[data-window-material]:has([data-translucent-sidebar]) {
     background-color: transparent !important;
   }
 
-  html.electron[data-window-material]:has([data-app-frame]) body {
+  html.electron[data-window-material]:has([data-translucent-sidebar]) body {
     background-color: color-mix(in srgb, var(--sidebar) 25%, transparent) !important;
   }
 
@@ -1584,6 +1584,10 @@ body {
   html.electron [data-app-frame] [data-app-sidebar] > [data-slot="sidebar-inner"] {
     background: transparent;
     border-right-width: 0;
+  }
+
+  html.electron [data-app-frame] [data-app-sidebar] [data-slot="sidebar-rail"] {
+    top: var(--workspace-topbar-height);
   }
 
   html.electron [data-app-frame] > [data-slot="sidebar-inset"] {

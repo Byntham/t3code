@@ -506,6 +506,9 @@ export function useSettingsRestore(onRestored?: () => void) {
         ? ["Contrast"]
         : []),
       ...(settings.glassOpacity !== DEFAULT_UNIFIED_SETTINGS.glassOpacity ? ["Glass opacity"] : []),
+      ...(settings.translucentSidebar !== DEFAULT_UNIFIED_SETTINGS.translucentSidebar
+        ? ["Translucent sidebar"]
+        : []),
       ...(settings.panelAnimationDurationMs !== DEFAULT_UNIFIED_SETTINGS.panelAnimationDurationMs
         ? ["Panel animations"]
         : []),
@@ -620,6 +623,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       settings.fontSizePrompt,
       settings.fontSizeTerminal,
       settings.glassOpacity,
+      settings.translucentSidebar,
       settings.panelAnimationDurationMs,
       settings.enableLegacyTokenStreaming,
       settings.enableProviderUpdateChecks,
@@ -711,6 +715,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       contextWindowMeterEnabled: DEFAULT_UNIFIED_SETTINGS.contextWindowMeterEnabled,
       environmentIdentificationMode: DEFAULT_UNIFIED_SETTINGS.environmentIdentificationMode,
       glassOpacity: DEFAULT_UNIFIED_SETTINGS.glassOpacity,
+      translucentSidebar: DEFAULT_UNIFIED_SETTINGS.translucentSidebar,
       panelAnimationDurationMs: DEFAULT_UNIFIED_SETTINGS.panelAnimationDurationMs,
       sidebarThreadPreviewCount: DEFAULT_UNIFIED_SETTINGS.sidebarThreadPreviewCount,
       sidebarProjectGroupingMode: DEFAULT_UNIFIED_SETTINGS.sidebarProjectGroupingMode,
@@ -1101,6 +1106,34 @@ export function AppearanceSettingsPanel() {
       </SettingsSection>
 
       <SettingsSection id="appearance-interface" title="Interface">
+        {isElectron ? (
+          <SettingsRow
+            {...searchableSetting("translucent-sidebar")}
+            description="Use a translucent sidebar and top bar tinted by your desktop background on supported systems."
+            resetAction={
+              settings.translucentSidebar !== DEFAULT_UNIFIED_SETTINGS.translucentSidebar ? (
+                <SettingResetButton
+                  label="translucent sidebar"
+                  onClick={() =>
+                    updateSettings({
+                      translucentSidebar: DEFAULT_UNIFIED_SETTINGS.translucentSidebar,
+                    })
+                  }
+                />
+              ) : null
+            }
+            control={
+              <Switch
+                checked={settings.translucentSidebar}
+                onCheckedChange={(checked) =>
+                  updateSettings({ translucentSidebar: Boolean(checked) })
+                }
+                aria-label="Translucent sidebar"
+              />
+            }
+          />
+        ) : null}
+
         <SettingsRow
           {...searchableSetting("setting-appearance-contrast")}
           description="Adjust the contrast of colors and borders across the interface."
@@ -1198,7 +1231,11 @@ export function AppearanceSettingsPanel() {
         {showEnvironmentIdentification ? (
           <SettingsRow
             {...searchableSetting("environment-identification")}
-            description="Choose how Dev and Nightly environments are identified."
+            description={
+              isElectron
+                ? "Choose how Dev and Nightly environments are identified. The desktop sidebar uses a badge in place of artwork."
+                : "Choose how Dev and Nightly environments are identified."
+            }
             resetAction={
               settings.environmentIdentificationMode !== DEFAULT_ENVIRONMENT_IDENTIFICATION_MODE ? (
                 <SettingResetButton

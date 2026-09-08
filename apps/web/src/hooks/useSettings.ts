@@ -33,6 +33,7 @@ import {
   supportsSharedSettingsSync,
 } from "@t3tools/client-runtime/state/shared-settings";
 import { ensureLocalApi } from "~/localApi";
+import { isElectron } from "~/env";
 import {
   getThemeDefinition,
   getThemePreviewSidebarArtwork,
@@ -47,6 +48,7 @@ import { primaryServerSettingsAtom, serverEnvironment } from "~/state/server";
 import { useEnvironments, usePrimaryEnvironment } from "~/state/environments";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { useTheme } from "./useTheme";
+import { useMediaQuery } from "./useMediaQuery";
 
 const CLIENT_SETTINGS_PERSISTENCE_ERROR_SCOPE = "[CLIENT_SETTINGS]";
 
@@ -337,19 +339,29 @@ export function resolveEnvironmentIdentificationMode(input: {
   settingsHydrated: boolean;
   paletteThemeActive?: boolean;
   paletteThemeAllowsArtwork?: boolean;
+  desktopSidebarFrame?: boolean;
 }): EnvironmentIdentificationMode {
   // Avoid briefly rendering the default artwork before a persisted pill/none choice loads.
   if (!input.settingsHydrated) return "none";
-  // Artwork palettes are maintained for built-ins only. Keep an explicit
-  // "none", but use the theme-aware pill for user-controlled palettes.
-  return input.paletteThemeActive && !input.paletteThemeAllowsArtwork && input.mode === "artwork"
+  // Keep artwork out of the shared sidebar/titlebar frame and palettes without matching artwork.
+  // Resolve to a pill without overwriting the user's saved artwork choice.
+  return input.mode === "artwork" &&
+    (input.desktopSidebarFrame || (input.paletteThemeActive && !input.paletteThemeAllowsArtwork))
     ? "pill"
     : input.mode;
+}
+
+export function useTranslucentSidebarEnabled(): boolean {
+  const settingsHydrated = useClientSettingsHydrated();
+  const enabled = useClientSettingsValue().translucentSidebar;
+  const desktopLayout = useMediaQuery("md");
+  return isElectron && settingsHydrated && enabled && desktopLayout;
 }
 
 export function useEnvironmentIdentificationMode(): EnvironmentIdentificationMode {
   const settingsHydrated = useClientSettingsHydrated();
   const mode = useClientSettingsValue().environmentIdentificationMode;
+  const desktopLayout = useMediaQuery("md");
   const { resolvedTheme, theme, themeHalves } = useTheme();
   const previewSidebarArtwork = useSyncExternalStore(
     subscribeToThemePreview,
@@ -361,6 +373,7 @@ export function useEnvironmentIdentificationMode(): EnvironmentIdentificationMod
   return resolveEnvironmentIdentificationMode({
     mode,
     settingsHydrated,
+    desktopSidebarFrame: isElectron && desktopLayout,
     paletteThemeActive: previewSidebarArtwork !== null || activeThemeDefinition !== null,
     paletteThemeAllowsArtwork: previewSidebarArtwork ?? themeAllowsSidebarArtwork(activeTheme),
   });

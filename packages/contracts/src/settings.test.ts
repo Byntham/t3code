@@ -305,6 +305,25 @@ describe("ClientSettings browser recording frame rate", () => {
   });
 });
 
+describe("ClientSettings translucent sidebar", () => {
+  it("defaults existing clients to an opaque sidebar", () => {
+    expect(decodeClientSettings({}).translucentSidebar).toBe(false);
+    expect(decodeClientSettingsPatch({})).not.toHaveProperty("translucentSidebar");
+  });
+
+  it.each([true, false])("preserves the saved preference: %s", (value) => {
+    expect(decodeClientSettings({ translucentSidebar: value }).translucentSidebar).toBe(value);
+    expect(decodeClientSettingsPatch({ translucentSidebar: value })).toEqual({
+      translucentSidebar: value,
+    });
+  });
+
+  it.each(["true", 1, null])("rejects a non-boolean preference: %s", (value) => {
+    expect(() => decodeClientSettings({ translucentSidebar: value })).toThrow();
+    expect(() => decodeClientSettingsPatch({ translucentSidebar: value })).toThrow();
+  });
+});
+
 describe("ClientSettings glass opacity", () => {
   it("defaults to a readable translucent surface", () => {
     expect(decodeClientSettings({}).glassOpacity).toBe(80);
