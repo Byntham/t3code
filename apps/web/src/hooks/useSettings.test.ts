@@ -328,21 +328,8 @@ describe("persistClientSettingsUpdate", () => {
 });
 
 describe("resolveEnvironmentIdentificationMode", () => {
-  it("uses a pill in the desktop frame and preserves artwork on other layouts", () => {
-    const preference = { mode: "artwork", settingsHydrated: true } as const;
-    expect(resolveEnvironmentIdentificationMode({ ...preference, desktopSidebarFrame: true })).toBe(
-      "pill",
-    );
-    expect(
-      resolveEnvironmentIdentificationMode({ ...preference, desktopSidebarFrame: false }),
-    ).toBe("artwork");
-    expect(
-      resolveEnvironmentIdentificationMode({
-        mode: "none",
-        settingsHydrated: true,
-        desktopSidebarFrame: true,
-      }),
-    ).toBe("none");
+  it.each(["artwork", "pill", "none"] as const)("preserves the %s preference", (mode) => {
+    expect(resolveEnvironmentIdentificationMode({ mode, settingsHydrated: true })).toBe(mode);
   });
 
   it("keeps identification hidden until client settings hydrate", () => {

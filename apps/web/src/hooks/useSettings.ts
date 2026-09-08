@@ -339,14 +339,12 @@ export function resolveEnvironmentIdentificationMode(input: {
   settingsHydrated: boolean;
   paletteThemeActive?: boolean;
   paletteThemeAllowsArtwork?: boolean;
-  desktopSidebarFrame?: boolean;
 }): EnvironmentIdentificationMode {
   // Avoid briefly rendering the default artwork before a persisted pill/none choice loads.
   if (!input.settingsHydrated) return "none";
-  // Keep artwork out of the shared sidebar/titlebar frame and palettes without matching artwork.
+  // Keep artwork off palettes without matching artwork.
   // Resolve to a pill without overwriting the user's saved artwork choice.
-  return input.mode === "artwork" &&
-    (input.desktopSidebarFrame || (input.paletteThemeActive && !input.paletteThemeAllowsArtwork))
+  return input.mode === "artwork" && input.paletteThemeActive && !input.paletteThemeAllowsArtwork
     ? "pill"
     : input.mode;
 }
@@ -361,7 +359,6 @@ export function useTranslucentSidebarEnabled(): boolean {
 export function useEnvironmentIdentificationMode(): EnvironmentIdentificationMode {
   const settingsHydrated = useClientSettingsHydrated();
   const mode = useClientSettingsValue().environmentIdentificationMode;
-  const desktopLayout = useMediaQuery("md");
   const { resolvedTheme, theme, themeHalves } = useTheme();
   const previewSidebarArtwork = useSyncExternalStore(
     subscribeToThemePreview,
@@ -373,7 +370,6 @@ export function useEnvironmentIdentificationMode(): EnvironmentIdentificationMod
   return resolveEnvironmentIdentificationMode({
     mode,
     settingsHydrated,
-    desktopSidebarFrame: isElectron && desktopLayout,
     paletteThemeActive: previewSidebarArtwork !== null || activeThemeDefinition !== null,
     paletteThemeAllowsArtwork: previewSidebarArtwork ?? themeAllowsSidebarArtwork(activeTheme),
   });

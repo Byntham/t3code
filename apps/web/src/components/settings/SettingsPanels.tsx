@@ -1231,11 +1231,7 @@ export function AppearanceSettingsPanel() {
         {showEnvironmentIdentification ? (
           <SettingsRow
             {...searchableSetting("environment-identification")}
-            description={
-              isElectron
-                ? "Choose how Dev and Nightly environments are identified. The desktop sidebar uses a badge in place of artwork."
-                : "Choose how Dev and Nightly environments are identified."
-            }
+            description="Choose how Dev and Nightly environments are identified."
             resetAction={
               settings.environmentIdentificationMode !== DEFAULT_ENVIRONMENT_IDENTIFICATION_MODE ? (
                 <SettingResetButton

@@ -1590,10 +1590,52 @@ body {
     top: var(--workspace-topbar-height);
   }
 
+  /* Highlight the canvas outline instead of drawing a separate resize line. */
+  html.electron [data-app-frame] [data-app-sidebar] [data-slot="sidebar-rail"]::after {
+    display: none;
+  }
+
+  html.electron [data-app-frame] {
+    --desktop-workspace-corner-radius: 12px;
+  }
+
+  /* Anchor to the viewport so the outline includes the native resize strip. */
+  html.electron
+    [data-app-frame]:has([data-app-sidebar] [data-slot="sidebar-rail"]:is(:hover, :active))::after {
+    content: "";
+    position: fixed;
+    inset: var(--workspace-topbar-height) 0 0 var(--sidebar-width);
+    z-index: 30;
+    pointer-events: none;
+    border-top: 2px solid var(--sidebar-border);
+    border-left: 2px solid var(--sidebar-border);
+    border-radius: var(--desktop-workspace-corner-radius) 0 0 0;
+  }
+
+  /* Native chrome needs a real alpha fade, not the opaque theme-color overlay. */
+  html.electron [data-app-frame] .sidebar-stage-backdrop::after {
+    display: none;
+  }
+
+  /* Match the straight edge fades to a quarter-circle fade at the bottom-right.
+     Non-overlapping mask tiles keep the corner continuous with both edges. */
+  html.electron [data-app-frame] .sidebar-stage-backdrop {
+    --stage-edge-fade:
+      black 0px, rgb(0 0 0 / 97%) 8px, rgb(0 0 0 / 85%) 16px, rgb(0 0 0 / 50%) 24px,
+      rgb(0 0 0 / 15%) 32px, rgb(0 0 0 / 2.5%) 40px, transparent 48px;
+    right: 20px;
+    mask:
+      linear-gradient(black, black) top left / calc(100% - 48px) calc(100% - 48px) no-repeat,
+      linear-gradient(to right, var(--stage-edge-fade)) top right / 48px calc(100% - 48px) no-repeat,
+      linear-gradient(to bottom, var(--stage-edge-fade)) bottom left / calc(100% - 48px) 48px
+        no-repeat,
+      radial-gradient(circle at top left, var(--stage-edge-fade)) bottom right / 48px 48px no-repeat;
+  }
+
   html.electron [data-app-frame] > [data-slot="sidebar-inset"] {
     height: calc(100dvh - var(--workspace-topbar-height));
     margin-top: var(--workspace-topbar-height);
-    border-radius: 12px 0 0 0;
+    border-radius: var(--desktop-workspace-corner-radius) 0 0 0;
   }
 
   html.electron [data-app-frame] [data-workspace-titlebar-controls] {
