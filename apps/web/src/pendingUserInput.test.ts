@@ -4,6 +4,7 @@ import {
   buildPendingUserInputAnswers,
   countAnsweredPendingUserInputQuestions,
   derivePendingUserInputProgress,
+  findFirstUnansweredPendingUserInputQuestionIndex,
   resolvePendingUserInputAnswer,
   setPendingUserInputCustomAnswer,
   togglePendingUserInputOptionSelection,
@@ -245,6 +246,29 @@ describe("pending user input question progress", () => {
     ).toBe(1);
   });
 
+  it("finds the first unanswered question", () => {
+    expect(
+      findFirstUnansweredPendingUserInputQuestionIndex(questions, {
+        scope: {
+          selectedOptionValues: ["Orchestration-first"],
+        },
+      }),
+    ).toBe(1);
+  });
+
+  it("returns the last question index when all answers are complete", () => {
+    expect(
+      findFirstUnansweredPendingUserInputQuestionIndex(questions, {
+        scope: {
+          selectedOptionValues: ["Orchestration-first"],
+        },
+        compat: {
+          customAnswer: "Keep it for one release window",
+        },
+      }),
+    ).toBe(1);
+  });
+
   it("derives the active question and advancement state", () => {
     expect(
       derivePendingUserInputProgress(
@@ -301,23 +325,4 @@ describe("pending user input question progress", () => {
       isComplete: false,
     });
   });
-});
-
-it("accepts attachment-only answers after every upload finishes", () => {
-  const questions = [
-    { id: "spec", header: "Spec", question: "Provide a spec", options: [], multiSelect: false },
-  ];
-  expect(buildPendingUserInputAnswers(questions, { spec: { attachmentCount: 1 } })).toEqual({
-    spec: "",
-  });
-  expect(
-    buildPendingUserInputAnswers(questions, {
-      spec: { attachmentCount: 1, attachmentsBlocked: true },
-    }),
-  ).toBeNull();
-  expect(
-    buildPendingUserInputAnswers([{ ...questions[0]!, allowCustomAnswer: false }], {
-      spec: { attachmentCount: 1 },
-    }),
-  ).toBeNull();
 });

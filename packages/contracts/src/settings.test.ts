@@ -150,6 +150,15 @@ describe("ClientSettings load balancing", () => {
   });
 });
 
+describe("ClientSettings composer context strip", () => {
+  it("defaults to draft-only and accepts a persistent strip preference", () => {
+    expect(decodeClientSettings({}).persistComposerContextStrip).toBe(false);
+    expect(
+      decodeClientSettingsPatch({ persistComposerContextStrip: true }).persistComposerContextStrip,
+    ).toBe(true);
+  });
+});
+
 describe("ClientSettings word wrap", () => {
   it("defaults word wrap on", () => {
     expect(decodeClientSettings({}).wordWrap).toBe(true);
@@ -302,25 +311,6 @@ describe("ClientSettings browser recording frame rate", () => {
   it.each([24, 59, 120])("rejects an unsupported frame rate: %s", (frameRate) => {
     expect(() => decodeClientSettings({ browserRecordingFrameRate: frameRate })).toThrow();
     expect(() => decodeClientSettingsPatch({ browserRecordingFrameRate: frameRate })).toThrow();
-  });
-});
-
-describe("ClientSettings translucent sidebar", () => {
-  it("defaults existing clients to an opaque sidebar", () => {
-    expect(decodeClientSettings({}).translucentSidebar).toBe(false);
-    expect(decodeClientSettingsPatch({})).not.toHaveProperty("translucentSidebar");
-  });
-
-  it.each([true, false])("preserves the saved preference: %s", (value) => {
-    expect(decodeClientSettings({ translucentSidebar: value }).translucentSidebar).toBe(value);
-    expect(decodeClientSettingsPatch({ translucentSidebar: value })).toEqual({
-      translucentSidebar: value,
-    });
-  });
-
-  it.each(["true", 1, null])("rejects a non-boolean preference: %s", (value) => {
-    expect(() => decodeClientSettings({ translucentSidebar: value })).toThrow();
-    expect(() => decodeClientSettingsPatch({ translucentSidebar: value })).toThrow();
   });
 });
 
@@ -598,6 +588,40 @@ describe("ServerSettings worktree defaults", () => {
     expect(
       decodeServerSettingsPatch({ newWorktreesStartFromOrigin: false }).newWorktreesStartFromOrigin,
     ).toBe(false);
+  });
+});
+
+describe("ServerSettings Cursor legacy settings", () => {
+  it("ignores obsolete Cursor CLI settings when reading server settings", () => {
+    const decoded = decodeServerSettings({
+      providers: {
+        cursor: {
+          enabled: true,
+          binaryPath: "cursor-agent",
+          apiEndpoint: "http://127.0.0.1:3774",
+        },
+      },
+    });
+
+    expect(decoded.providers.cursor.enabled).toBe(true);
+    expect(decoded.providers.cursor).not.toHaveProperty("binaryPath");
+    expect(decoded.providers.cursor).not.toHaveProperty("apiEndpoint");
+  });
+
+  it("ignores obsolete Cursor CLI settings in patches", () => {
+    const patch = decodeServerSettingsPatch({
+      providers: {
+        cursor: {
+          enabled: true,
+          binaryPath: "cursor-agent",
+          apiEndpoint: "http://127.0.0.1:3774",
+        },
+      },
+    });
+
+    expect(patch.providers?.cursor?.enabled).toBe(true);
+    expect(patch.providers?.cursor).not.toHaveProperty("binaryPath");
+    expect(patch.providers?.cursor).not.toHaveProperty("apiEndpoint");
   });
 });
 

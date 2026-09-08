@@ -23,6 +23,7 @@ import { useRightPanelStore } from "~/rightPanelStore";
 import { previewBridge } from "./previewBridge";
 import {
   clampPreviewMiniPlayerPosition,
+  PREVIEW_MINI_PLAYER_EDGE_GAP,
   PREVIEW_MINI_PLAYER_WEBVIEW_Z_INDEX,
   type PreviewMiniPlayerFrame,
   resizePreviewMiniPlayer,

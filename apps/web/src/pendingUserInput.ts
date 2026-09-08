@@ -3,8 +3,6 @@ import type { UserInputQuestion } from "@t3tools/contracts";
 export interface PendingUserInputDraftAnswer {
   selectedOptionValues?: string[];
   customAnswer?: string;
-  attachmentCount?: number;
-  attachmentsBlocked?: boolean;
 }
 
 export interface PendingUserInputProgress {
@@ -43,7 +41,6 @@ export function resolvePendingUserInputAnswer(
   question: UserInputQuestion,
   draft: PendingUserInputDraftAnswer | undefined,
 ): string | string[] | null {
-  if (draft?.attachmentsBlocked) return null;
   const customAnswer =
     question.allowCustomAnswer === false ? null : normalizeDraftAnswer(draft?.customAnswer);
   if (customAnswer) {
@@ -54,17 +51,10 @@ export function resolvePendingUserInputAnswer(
     (value) => question.options.some((option) => (option.value ?? option.label) === value),
   );
   if (question.multiSelect) {
-    return selectedOptionValues.length > 0
-      ? selectedOptionValues
-      : question.allowCustomAnswer !== false && (draft?.attachmentCount ?? 0) > 0
-        ? ""
-        : null;
+    return selectedOptionValues.length > 0 ? selectedOptionValues : null;
   }
 
-  return (
-    selectedOptionValues[0] ??
-    (question.allowCustomAnswer !== false && (draft?.attachmentCount ?? 0) > 0 ? "" : null)
-  );
+  return selectedOptionValues[0] ?? null;
 }
 
 export function setPendingUserInputCustomAnswer(
@@ -133,6 +123,17 @@ export function countAnsweredPendingUserInputQuestions(
       ? count + 1
       : count;
   }, 0);
+}
+
+export function findFirstUnansweredPendingUserInputQuestionIndex(
+  questions: ReadonlyArray<UserInputQuestion>,
+  draftAnswers: Record<string, PendingUserInputDraftAnswer>,
+): number {
+  const unansweredIndex = questions.findIndex(
+    (question) => !resolvePendingUserInputAnswer(question, draftAnswers[question.id]),
+  );
+
+  return unansweredIndex === -1 ? Math.max(questions.length - 1, 0) : unansweredIndex;
 }
 
 export function derivePendingUserInputProgress(

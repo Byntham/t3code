@@ -6,12 +6,14 @@ import {
   ThreadLinkedPullRequest,
   UserInputRequestedPayload,
   isImportedAgentSessionMessageId,
+} from "@t3tools/contracts";
+import {
   type OrchestrationCommand,
   type OrchestrationEvent,
   type OrchestrationReadModel,
   type OrchestrationThread,
   type OrchestrationThreadActivity,
-} from "@t3tools/contracts";
+} from "@t3tools/contracts/legacy-orchestration";
 import { compareDateTimeStrings } from "@t3tools/shared/dateTime";
 import * as DateTime from "effect/DateTime";
 import * as Crypto from "effect/Crypto";
@@ -236,7 +238,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           defaultModelSelection: null,
           faviconPath: null,
           projectIcon: null,
-          scripts: [],
+          scripts: command.scripts ?? [],
           createdAt: command.createdAt,
           updatedAt: command.createdAt,
         },
@@ -366,7 +368,6 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           aggregateId: command.threadId,
           occurredAt: command.createdAt,
           commandId: command.commandId,
-          ...(command.historyImport === true ? { metadata: { historyImport: true } } : {}),
         })),
         type: "thread.created",
         payload: {
@@ -1222,35 +1223,6 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         threadId: command.threadId,
       });
       const request = userInputActivity;
-      const attachments = Object.values(command.attachmentsByQuestionId ?? {}).flat();
-      let questionTextById: Record<string, string> = {};
-      if (attachments.length > 0) {
-        const payload =
-          request?.kind === "user-input.requested"
-            ? decodeUserInputRequestedPayload(request.payload)
-            : Option.none();
-        if (Option.isNone(payload)) {
-          return yield* new OrchestrationCommandInvariantError({
-            commandType: command.type,
-            detail:
-              request?.kind === "user-input.resolved"
-                ? "This question has already been answered."
-                : "This question is no longer pending.",
-          });
-        }
-        questionTextById = Object.fromEntries(
-          payload.value.questions.map((question) => [question.id, question.question]),
-        );
-        for (const questionId of Object.keys(command.attachmentsByQuestionId ?? {})) {
-          const question = payload.value.questions.find((question) => question.id === questionId);
-          if (!question || question.allowCustomAnswer === false) {
-            return yield* new OrchestrationCommandInvariantError({
-              commandType: command.type,
-              detail: "This question does not accept file references.",
-            });
-          }
-        }
-      }
       if (
         request &&
         Predicate.isObject(request.payload) &&
@@ -1266,22 +1238,13 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         const replies: string[] = [];
         for (const question of payload.value.questions) {
           const answer = command.answers[question.id];
-          if (
-            typeof answer !== "string" ||
-            (answer.trim().length === 0 && !command.attachmentsByQuestionId?.[question.id]?.length)
-          ) {
+          if (typeof answer !== "string" || answer.trim().length === 0) {
             return yield* new OrchestrationCommandInvariantError({
               commandType: command.type,
               detail: "Answer each question before sending.",
             });
           }
-          const questionAttachments = command.attachmentsByQuestionId?.[question.id] ?? [];
-          const attachmentLabels = questionAttachments
-            .map((attachment) => `Attached file: ${attachment.name} (${attachment.id})`)
-            .join("\n");
-          replies.push(
-            [`${question.question}\n${answer.trim()}`, attachmentLabels].filter(Boolean).join("\n"),
-          );
+          replies.push(`${question.question}\n${answer.trim()}`);
         }
         // Commit the answer and its message together. The normal turn path
         // steers a running agent or resumes an idle session.
@@ -1304,9 +1267,6 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
                   requestId: command.requestId,
                   responseMode: "message",
                   answers: command.answers,
-                  ...(command.attachmentsByQuestionId
-                    ? { attachmentsByQuestionId: command.attachmentsByQuestionId }
-                    : {}),
                 },
               },
             },
@@ -1321,57 +1281,30 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
                 messageId: MessageId.make(`async-answer:${command.requestId}`),
                 role: "user",
                 text: replies.join("\n\n"),
-                attachments,
+                attachments: [],
               },
             },
           ],
         });
       }
-      const responseEvent = {
+      return {
         ...(yield* withEventBase({
           aggregateKind: "thread",
           aggregateId: command.threadId,
           occurredAt: command.createdAt,
           commandId: command.commandId,
-          metadata: { requestId: command.requestId },
+          metadata: {
+            requestId: command.requestId,
+          },
         })),
-        type: "thread.user-input-response-requested" as const,
+        type: "thread.user-input-response-requested",
         payload: {
           threadId: command.threadId,
           requestId: command.requestId,
           answers: command.answers,
-          ...(command.attachmentsByQuestionId
-            ? { attachmentsByQuestionId: command.attachmentsByQuestionId }
-            : {}),
           createdAt: command.createdAt,
         },
       };
-      if (attachments.length === 0) return responseEvent;
-      const historyEvent = yield* decideOrchestrationCommand({
-        readModel,
-        command: {
-          type: "thread.activity.append",
-          commandId: command.commandId,
-          threadId: command.threadId,
-          createdAt: command.createdAt,
-          activity: {
-            id: EventId.make(`question-answer:${command.commandId}`),
-            kind: "user-input.answer-submitted",
-            summary: "Question answer submitted",
-            tone: "info",
-            turnId: request?.turnId ?? null,
-            createdAt: command.createdAt,
-            payload: {
-              requestId: command.requestId,
-              answers: command.answers,
-              questionTextById,
-              attachmentsByQuestionId: command.attachmentsByQuestionId,
-              detail: attachments.map((attachment) => attachment.name).join("\n"),
-            },
-          },
-        },
-      });
-      return [...(Array.isArray(historyEvent) ? historyEvent : [historyEvent]), responseEvent];
     }
 
     case "thread.user-input.dismiss": {
@@ -1635,7 +1568,6 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
             aggregateId: command.threadId,
             occurredAt: message.createdAt,
             commandId: command.commandId,
-            metadata: { historyImport: true },
           })),
           type: "thread.message-sent",
           payload: {
@@ -1661,7 +1593,6 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           aggregateId: command.threadId,
           occurredAt: settledAt,
           commandId: command.commandId,
-          metadata: { historyImport: true },
         })),
         type: "thread.settled",
         payload: {
