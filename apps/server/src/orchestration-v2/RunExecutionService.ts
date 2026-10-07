@@ -566,6 +566,13 @@ export const layer: Layer.Layer<
       readonly shouldFinalizeRun?: () => Effect.Effect<boolean, ProjectionStoreV2Error>;
       readonly hasUnpairedRunInterruptRequest?: () => Effect.Effect<boolean, never>;
       readonly openRunOwnedSubagents?: OpenRunOwnedSubagentProjection;
+      /**
+       * Open tool and command items of a run whose provider stream was lost.
+       * Nothing will report on them again, so they are cancelled with the run,
+       * as restart recovery does, instead of passing to the next run as
+       * background work.
+       */
+      readonly orphanedTurnItems?: ReadonlyArray<OrchestrationV2TurnItem>;
       readonly terminal: ProviderTerminalEvent;
       readonly failureItemPersisted: boolean;
       readonly refreshAfterTurn: Effect.Effect<void>;
@@ -636,6 +643,19 @@ export const layer: Layer.Layer<
                 allocateEventId,
               })
             : [];
+        const orphanedTurnItemEvents: Array<OrchestrationV2DomainEvent> = [];
+        for (const item of input.orphanedTurnItems ?? []) {
+          orphanedTurnItemEvents.push({
+            id: yield* allocateEventId(),
+            type: "turn-item.updated",
+            threadId: item.threadId,
+            runId: input.run.id,
+            ...(item.nodeId === null ? {} : { nodeId: item.nodeId }),
+            providerInstanceId: input.run.providerInstanceId,
+            occurredAt: completedAt,
+            payload: { ...item, status: "cancelled", completedAt, updatedAt: completedAt },
+          });
+        }
         const persistedStatus =
           input.terminal.status === "completed" ? "waiting" : input.terminal.status;
         // Completion cohorts are advanced by Orchestrator while a provider
@@ -690,6 +710,7 @@ export const layer: Layer.Layer<
             // Terminalize open run-owned subagent rows before the root run
             // settles so projections never keep a forever-running subagent card.
             ...cascadedSubagentEvents,
+            ...orphanedTurnItemEvents,
             ...(finalizedAttempt === null
               ? []
               : [
@@ -955,9 +976,11 @@ export const layer: Layer.Layer<
           const providerThreadOwnerLost = yield* Ref.make(false);
           const activeChildProviderTurns = yield* Ref.make<ReadonlySet<ProviderTurnId>>(new Set());
           const activeChildSubagents = yield* Ref.make<ReadonlySet<NodeId>>(new Set());
+          // Open background items with their latest update, if one arrived on
+          // this stream. A lost stream cancels this run's tool and command items.
           const activeBackgroundTurnItems = yield* Ref.make<
-            ReadonlySet<OrchestrationV2TurnItem["id"]>
-          >(new Set(inheritedBackgroundTurnItemsById.keys()));
+            ReadonlyMap<OrchestrationV2TurnItem["id"], OrchestrationV2TurnItem | undefined>
+          >(new Map(Array.from(inheritedBackgroundTurnItemsById.keys(), (id) => [id, undefined])));
           const openRunOwnedSubagents = yield* Ref.make(emptyOpenRunOwnedSubagentProjection());
           const finalizeRootRun = (terminal: ProviderTerminalEvent) =>
             Effect.gen(function* () {
@@ -1092,11 +1115,11 @@ export const layer: Layer.Layer<
                     belongsToInheritedBackgroundItem)
                 ) {
                   yield* Ref.update(activeBackgroundTurnItems, (current) => {
-                    const next = new Set(current);
+                    const next = new Map(current);
                     if (isSettledTurnItemStatus(event.turnItem.status)) {
                       next.delete(event.turnItem.id);
                     } else {
-                      next.add(event.turnItem.id);
+                      next.set(event.turnItem.id, event.turnItem);
                     }
                     return next;
                   });
@@ -1291,41 +1314,43 @@ export const layer: Layer.Layer<
                     Effect.andThen(
                       finalized
                         ? Effect.void
-                        : Ref.get(latestProviderThread).pipe(
-                            Effect.flatMap((providerThread) =>
-                              Ref.get(latestTurnItemOrdinal).pipe(
-                                Effect.flatMap((latestItemOrdinal) =>
-                                  Ref.get(openRunOwnedSubagents).pipe(
-                                    Effect.flatMap((openSubagents) =>
-                                      writeFinalRunEvents({
-                                        run: input.run,
-                                        rootNode: input.rootNode,
-                                        checkpointScope: input.checkpointScope,
-                                        providerThread,
-                                        attempt: input.attempt,
-                                        // The failure may be the ownership
-                                        // read itself, so check in the write.
-                                        writeIfRunCurrent: {
-                                          activeAttemptId: input.attempt.id,
-                                          expectedStatus: "running",
-                                        },
-                                        openRunOwnedSubagents: openSubagents,
-                                        terminal: makeFailedTerminalEvent(
-                                          makeProviderFailure({
-                                            cause: Cause.squash(cause),
-                                            class: "unknown",
-                                          }),
-                                          latestItemOrdinal + 1,
-                                        ),
-                                        failureItemPersisted: false,
-                                        refreshAfterTurn,
-                                      }),
-                                    ),
-                                  ),
-                                ),
+                        : Effect.gen(function* () {
+                            const latestItemOrdinal = yield* Ref.get(latestTurnItemOrdinal);
+                            yield* writeFinalRunEvents({
+                              run: input.run,
+                              rootNode: input.rootNode,
+                              checkpointScope: input.checkpointScope,
+                              providerThread: yield* Ref.get(latestProviderThread),
+                              attempt: input.attempt,
+                              // The failure may be the ownership
+                              // read itself, so check in the write.
+                              writeIfRunCurrent: {
+                                activeAttemptId: input.attempt.id,
+                                expectedStatus: "running",
+                              },
+                              openRunOwnedSubagents: yield* Ref.get(openRunOwnedSubagents),
+                              // The stream that would finish them is gone, for
+                              // example when a workspace change detaches the
+                              // session mid tool call.
+                              orphanedTurnItems: Array.from(
+                                (yield* Ref.get(activeBackgroundTurnItems)).values(),
+                              ).filter(
+                                (item): item is OrchestrationV2TurnItem =>
+                                  item?.runId === input.run.id &&
+                                  (item.type === "command_execution" ||
+                                    item.type === "dynamic_tool"),
                               ),
-                            ),
-                          ),
+                              terminal: makeFailedTerminalEvent(
+                                makeProviderFailure({
+                                  cause: Cause.squash(cause),
+                                  class: "unknown",
+                                }),
+                                latestItemOrdinal + 1,
+                              ),
+                              failureItemPersisted: false,
+                              refreshAfterTurn,
+                            });
+                          }),
                     ),
                     Effect.mapError(
                       (writeCause) =>
