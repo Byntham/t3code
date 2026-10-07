@@ -49,6 +49,7 @@ import {
   makeProviderFailureTurnItem,
 } from "@t3tools/provider-core/server/failure";
 import * as RunFinalizationService from "./RunFinalizationService.ts";
+import { stripUnservedToolOutputImageBytes } from "./toolOutputImageBytes.ts";
 
 export interface ProviderEventRoutingState {
   readonly ownedThreadIds: ReadonlySet<ThreadId>;
@@ -653,7 +654,14 @@ export const layer: Layer.Layer<
             ...(item.nodeId === null ? {} : { nodeId: item.nodeId }),
             providerInstanceId: input.run.providerInstanceId,
             occurredAt: completedAt,
-            payload: { ...item, status: "cancelled", completedAt, updatedAt: completedAt },
+            // The snapshot is the adapter's item, so it gets the same image
+            // stripping the ingestor gives every stored update.
+            payload: stripUnservedToolOutputImageBytes({
+              ...item,
+              status: "cancelled",
+              completedAt,
+              updatedAt: completedAt,
+            }),
           });
         }
         const persistedStatus =

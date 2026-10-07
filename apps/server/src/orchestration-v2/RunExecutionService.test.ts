@@ -3483,6 +3483,49 @@ it.effect("cancels the run's open tool calls when its provider stream is lost", 
   }),
 );
 
+it.effect("strips unserved image bytes from a tool call it cancels", () =>
+  Effect.gen(function* () {
+    const imageBase64 = Buffer.alloc(3_000, 7).toString("base64");
+    const { written } = yield* captureRootRunTermination({
+      key: "lost-stream-tool-image",
+      shouldFinalizeRun: () => Effect.succeed(true),
+      events: (ids) =>
+        Stream.concat(
+          Stream.make({
+            type: "turn_item.updated",
+            driver,
+            turnItem: {
+              id: ids.itemId,
+              threadId: ids.threadId,
+              runId: ids.runId,
+              providerTurnId: ids.rootProviderTurnId,
+              ordinal: 1,
+              type: "dynamic_tool",
+              status: "running",
+              toolName: "Read",
+              output: {
+                type: "image",
+                file: { base64: imageBase64, type: "image/png", originalSize: 3_000 },
+              },
+            },
+          } as ProviderAdapter.ProviderAdapterV2Event),
+          Stream.fail(
+            new ProviderAdapter.ProviderAdapterEventStreamError({
+              driver,
+              providerSessionId: ProviderSessionId.make("session:detached"),
+              cause: "Workspace changed.",
+            }),
+          ),
+        ),
+    });
+    const cancelled = written.find((item) => item.type === "dynamic_tool");
+    assert.deepEqual(cancelled?.type === "dynamic_tool" ? cancelled.output : null, {
+      type: "image",
+      file: { type: "image/png", originalSize: 3_000, sizeBytes: 3_000 },
+    });
+  }),
+);
+
 it.effect("leaves open tool calls to the next run when only storing an event fails", () =>
   Effect.gen(function* () {
     const { written } = yield* captureRootRunTermination({
