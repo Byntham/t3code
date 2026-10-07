@@ -973,6 +973,9 @@ export const layer: Layer.Layer<
           );
           const rootTerminalSeen = yield* Ref.make(false);
           const rootRunFinalized = yield* Ref.make(false);
+          // Set when the provider's stream itself fails, as when its session is
+          // released. A failure to store an event leaves the provider running.
+          const providerStreamLost = yield* Ref.make(false);
           const providerThreadOwnerLost = yield* Ref.make(false);
           const activeChildProviderTurns = yield* Ref.make<ReadonlySet<ProviderTurnId>>(new Set());
           const activeChildSubagents = yield* Ref.make<ReadonlySet<NodeId>>(new Set());
@@ -1208,6 +1211,7 @@ export const layer: Layer.Layer<
           });
           const filterAssistantEvent = makeAssistantStreamingFilter(responseStreamingMode);
           const providerEventFiber = yield* eventSubscription.events.pipe(
+            Stream.tapCause(() => Ref.set(providerStreamLost, true)),
             Stream.filterEffect((event) =>
               Ref.modify(eventRouting, (state) => routeProviderEvent(event, routeIdentity, state)),
             ),
@@ -1332,14 +1336,16 @@ export const layer: Layer.Layer<
                               // The stream that would finish them is gone, for
                               // example when a workspace change detaches the
                               // session mid tool call.
-                              orphanedTurnItems: Array.from(
-                                (yield* Ref.get(activeBackgroundTurnItems)).values(),
-                              ).filter(
-                                (item): item is OrchestrationV2TurnItem =>
-                                  item?.runId === input.run.id &&
-                                  (item.type === "command_execution" ||
-                                    item.type === "dynamic_tool"),
-                              ),
+                              orphanedTurnItems: (yield* Ref.get(providerStreamLost))
+                                ? Array.from(
+                                    (yield* Ref.get(activeBackgroundTurnItems)).values(),
+                                  ).filter(
+                                    (item): item is OrchestrationV2TurnItem =>
+                                      item?.runId === input.run.id &&
+                                      (item.type === "command_execution" ||
+                                        item.type === "dynamic_tool"),
+                                  )
+                                : [],
                               terminal: makeFailedTerminalEvent(
                                 makeProviderFailure({
                                   cause: Cause.squash(cause),

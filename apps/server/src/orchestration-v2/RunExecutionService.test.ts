@@ -3483,6 +3483,34 @@ it.effect("cancels the run's open tool calls when its provider stream is lost", 
   }),
 );
 
+it.effect("leaves open tool calls to the next run when only storing an event fails", () =>
+  Effect.gen(function* () {
+    const { written } = yield* captureRootRunTermination({
+      key: "ingest-failure-open-tool",
+      shouldFinalizeRun: () => Effect.succeed(true),
+      events: (ids) =>
+        Stream.make(
+          backgroundTurnItemEvent(ids, "dynamic_tool", "running", 1),
+          backgroundTurnItemEvent(ids, "dynamic_tool", "running", 2),
+        ),
+      // The provider is still running the tool; only this server failed to store an update.
+      ingestNormalized: (ingest) =>
+        ingest.event.type === "turn_item.updated" && ingest.event.turnItem.ordinal === 2
+          ? Effect.fail(
+              new ProviderEventIngestor.ProviderEventPublishError({
+                providerSessionId: ingest.providerSessionId,
+                eventCount: 1,
+              }),
+            )
+          : Effect.succeed([]),
+    });
+    assert.deepEqual(
+      written.map((item) => [item.type, item.status]),
+      [["error", "failed"]],
+    );
+  }),
+);
+
 it.effect("leaves open tool calls to the next run when the provider reports the terminal", () =>
   Effect.gen(function* () {
     const { written } = yield* captureRootRunTermination({
@@ -3557,6 +3585,7 @@ function captureRootRunTermination(input: {
   >;
   readonly startTurn?: ProviderAdapter.ProviderAdapterV2SessionRuntime["startTurn"];
   readonly refreshAfterTurn?: Effect.Effect<void>;
+  readonly ingestNormalized?: ProviderEventIngestor.ProviderEventIngestorV2["Service"]["ingestNormalized"];
 }) {
   return Effect.gen(function* () {
     const ids = backgroundScenarioIds(input.key);
@@ -3622,7 +3651,7 @@ function captureRootRunTermination(input: {
           }),
           IdAllocator.layer,
           Layer.mock(ProviderEventIngestor.ProviderEventIngestorV2)({
-            ingestNormalized: () => Effect.succeed([]),
+            ingestNormalized: input.ingestNormalized ?? (() => Effect.succeed([])),
           }),
           ServerSettings.layerTest(),
           Layer.succeed(RunFinalizationService.RunFinalizationObserver, {
