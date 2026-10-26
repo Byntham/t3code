@@ -38,9 +38,7 @@ import { PreviewSnapshotToolkit, PreviewStandardToolkit, PreviewToolkit } from "
  * preference, which is desktop-local and unreadable from here — filling in
  * `true` would silently override it for every `preview_open`.
  */
-export function normalizePreviewOpenInput(
-  input: PreviewAutomationOpenInput,
-): PreviewAutomationOpenInput {
+function normalizePreviewOpenInput(input: PreviewAutomationOpenInput): PreviewAutomationOpenInput {
   const open = input.open ?? input.show;
   return {
     ...input,
@@ -205,7 +203,7 @@ const handlers = {
   ),
   preview_snapshot: McpToolAccess.readsAsCaller((input) => {
     const { includeImage, save, ...operationInput } = input ?? {};
-    // A hidden desktop tab draws no frames, so a screenshot nobody reads could only stall.
+    // A capture makes a hidden desktop tab paint until it answers; skip one nobody reads.
     return invokeTargeted<PreviewAutomationSnapshot>(
       "snapshot",
       includeImage === true || save === true
