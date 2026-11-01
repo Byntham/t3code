@@ -36,7 +36,8 @@ export function BrowserSurfaceSlot(props: {
       const presentation = presentationRef.current;
       if (presentation.visible !== wasVisible) {
         wasVisible = presentation.visible;
-        // Stay on screen while a closing panel slides away, like the DOM surfaces beside it.
+        // A close hides the slot in the same commit that marks the panel closed; stay on
+        // screen while it slides away, like the DOM surfaces beside it.
         closing = !presentation.visible && panel?.dataset.previewPanelClip === "closed";
       }
       const rect = toSurfaceRect(bounds);

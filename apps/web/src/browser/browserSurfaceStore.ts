@@ -141,7 +141,8 @@ export const useBrowserSurfaceStore = create<BrowserSurfaceStoreState>()((set) =
           ...state.byTabId,
           [tabId]: {
             ...current,
-            rect,
+            // A clip-only change keeps the rect identity so rect subscribers skip the frame.
+            rect: rectEquals(current.rect, rect) ? current.rect : rect,
             clip,
             visible,
             cornerRadius,
