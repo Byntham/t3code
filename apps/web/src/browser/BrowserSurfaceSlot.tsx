@@ -43,7 +43,15 @@ export function BrowserSurfaceSlot(props: {
       const rect = toSurfaceRect(bounds);
       const panelBounds = panel?.getBoundingClientRect();
       const visibleBounds = panelBounds ? intersectBounds(bounds, panelBounds) : bounds;
-      const clip = rectEquals(visibleBounds, bounds) ? null : toSurfaceRect(visibleBounds);
+      // Unrounded, so the clip edge tracks the panel's fractional edge exactly.
+      const clip = rectEquals(visibleBounds, bounds)
+        ? null
+        : {
+            x: visibleBounds.x,
+            y: visibleBounds.y,
+            width: visibleBounds.width,
+            height: visibleBounds.height,
+          };
       const shown =
         (presentation.visible || closing) && visibleBounds.width > 0 && visibleBounds.height > 0;
       if (!shown) closing = false;
